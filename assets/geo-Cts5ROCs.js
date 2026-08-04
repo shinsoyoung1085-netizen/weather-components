@@ -1,0 +1,1 @@
+function u(a,r,s,n){const t=o=>o*Math.PI/180,h=t(s-a),i=t(n-r),c=Math.sin(h/2)**2+Math.cos(t(a))*Math.cos(t(s))*Math.sin(i/2)**2;return 6371*(2*Math.atan2(Math.sqrt(c),Math.sqrt(1-c)))}function M(a,r,s){return s.reduce((n,t)=>{const e=u(a,r,t.lat,t.lng);return!n||e<n.distance?{city:t,distance:e}:n},null)}export{M as f,u as h};
