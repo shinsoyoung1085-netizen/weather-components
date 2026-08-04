@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { useConfigStore } from '../../stores/configStore.js'
+import WeatherIcon from './WeatherIcon.vue'
+import { mapStatusToIconType } from '../../utils/weatherIcon.js'
 
 const props = defineProps({
   city: {
@@ -20,13 +22,20 @@ const displayTemp = computed(() => {
   }
   return rawTemp // 'celsius'일 때는 원본 그대로 반환
 })
+
+const iconType = computed(() => mapStatusToIconType(props.city.status))
 </script>
 
 <template>
   <div class="weather-card" @click="$emit('select-card', city)">
-    <div class="city-name">{{ city.name }}</div>
-    <div class="temp">{{ displayTemp }}{{ configStore.unitSymbol }}</div>
-    <div class="status">{{ city.status }}</div>
+    <div class="weather-card-head">
+      <div>
+        <div class="city-name">{{ city.name }}</div>
+        <div class="temp">{{ displayTemp }}{{ configStore.unitSymbol }}</div>
+        <div class="status">{{ city.status }}</div>
+      </div>
+      <WeatherIcon :type="iconType" :size="40" />
+    </div>
 
     <span class="label hot" v-if="city.temp >= 25">🔥 더움 (25도 이상)</span>
     <span class="label cool" v-else>❄️ 선선함 (25도 미만)</span>
@@ -51,6 +60,13 @@ const displayTemp = computed(() => {
   transform: translateY(-2px);
   border-color: #2f6fed;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.weather-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .city-name {

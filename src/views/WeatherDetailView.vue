@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
+import WeatherInfoCard from '../components/exercise/WeatherInfoCard.vue'
 import { weatherList } from '../data/weatherMock.js'
 import { useConfigStore } from '../stores/configStore.js'
 
@@ -34,8 +35,14 @@ const displayTemp = computed(() => {
 <template>
   <div class="weather-detail">
     <BaseDashboardCard v-if="city" :title="`🗺️ ${city.name} 상세 기상관측`">
+      <WeatherInfoCard
+        :location="city.name"
+        :temp="displayTemp"
+        :unit-symbol="configStore.unitSymbol"
+        :status="city.status"
+      />
+
       <div class="detail-main">
-        <div class="temp">{{ displayTemp }}{{ configStore.unitSymbol }}</div>
         <span class="label" :class="city.temp >= 25 ? 'hot' : 'cool'">
           {{ city.temp >= 25 ? '🔥 더움 (25도 이상)' : '❄️ 선선함 (25도 미만)' }}
         </span>
@@ -75,15 +82,7 @@ const displayTemp = computed(() => {
 }
 
 .detail-main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.temp {
-  font-size: 36px;
-  font-weight: 700;
+  margin: 16px 0 20px;
 }
 
 .label {
