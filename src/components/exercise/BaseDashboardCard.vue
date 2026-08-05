@@ -16,16 +16,22 @@ defineProps({
 
 <style scoped>
 .dashboard-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  margin-bottom: 24px;
+  background: var(--wx-glass-bg);
+  border: 1px solid var(--wx-glass-border);
+  border-radius: var(--wx-radius-lg);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--wx-glass-shadow);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 .dashboard-card-title {
-  margin: 0 0 14px;
-  font-size: 16px;
+  margin: 0 0 16px;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wx-ink-faint);
 }
 </style>

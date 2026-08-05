@@ -2,6 +2,7 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
+import WeatherIcon from '../components/exercise/WeatherIcon.vue'
 import { weatherList } from '../data/weatherMock.js'
 import { findNearestCity, haversineDistanceKm } from '../utils/geo.js'
 import { reverseGeocode } from '../utils/kakaoGeocoder.js'
@@ -19,6 +20,16 @@ const selectedCity = computed(
 const current = computed(() => selectedCity.value.rain)
 const timeline = computed(() => selectedCity.value.rain.timeline)
 
+// Segmented Control의 슬라이딩 하이라이트 위치 계산용 (도시 개수/인덱스 기반)
+const cityCount = weatherList.length
+const activeCityIndex = computed(() => weatherList.findIndex((c) => c.id === selectedCityId.value))
+
+// 강수 카운트다운 카드 상단 아이콘 (맑음/비 계열로 단순 매핑)
+const heroIconType = computed(() => (current.value.level === 'clear' ? 'clear' : 'rain'))
+
+// 우산 필요 지수 게이지의 그라디언트 (강도 단계별로 다른 그라디언트 def를 참조)
+const gaugeColorUrl = computed(() => `url(#gaugeGradient-${current.value.level})`)
+
 // configStore(온도 단위 토글)도 홈/상세 화면과 동일하게 반영된다.
 const displayTemp = computed(() => {
   const rawTemp = selectedCity.value.temp
@@ -32,10 +43,12 @@ const displayTemp = computed(() => {
 // 강수 예보는 그 좌표와 가장 가까운 mock 도시(weatherList) 데이터를 그대로 쓴다.
 const locating = ref(false)
 const locationStatus = ref('')
+const locationStatusType = ref('info') // 'info' | 'error'
 const realAddress = ref('')
 
 function useMyLocation() {
   if (!navigator.geolocation) {
+    locationStatusType.value = 'error'
     locationStatus.value = '이 브라우저는 위치 정보를 지원하지 않습니다.'
     return
   }
@@ -48,6 +61,7 @@ function useMyLocation() {
       const nearest = findNearestCity(latitude, longitude, weatherList)
       if (nearest) {
         selectedCityId.value = nearest.city.id
+        locationStatusType.value = 'info'
         locationStatus.value = `강수 예보 기준 관측 지점: ${nearest.city.name} (약 ${nearest.distance.toFixed(1)}km)`
       }
 
@@ -62,6 +76,7 @@ function useMyLocation() {
     },
     (error) => {
       locating.value = false
+      locationStatusType.value = 'error'
       console.error('[geolocation error]', error.code, error.message)
       if (error.code === error.PERMISSION_DENIED) {
         locationStatus.value =
@@ -79,17 +94,10 @@ function useMyLocation() {
   )
 }
 
-const levelColor = { clear: '#3f9c6d', caution: '#c8842a', alert: '#d3402b' }
-const levelSoft = { clear: '#dcf0e6', caution: '#f7e8d2', alert: '#ffe3e0' }
-const barColor = ['#e5e7eb', '#3f9c6d', '#c8842a', '#d3402b']
+const levelColor = { clear: '#2fa66a', caution: '#e08a2e', alert: '#e2503f' }
+const levelSoft = { clear: 'var(--wx-clear-soft)', caution: 'var(--wx-caution-soft)', alert: 'var(--wx-alert-soft)' }
+const barColor = ['rgba(140, 150, 170, 0.25)', '#2fa66a', '#e08a2e', '#e2503f']
 const barHeight = [4, 30, 62, 96]
-
-// el-progress color: 30% 이하 파랑 / 70% 이하 주황 / 70% 초과 빨강
-function gaugeProgressColor(percentage) {
-  if (percentage <= 30) return '#409eff'
-  if (percentage <= 70) return '#e6a23c'
-  return '#f56c6c'
-}
 
 const notificationPrefs = ref({
   countdown: true,
@@ -206,9 +214,7 @@ onUnmounted(() => {
 
     <BaseDashboardCard title="위치 설정">
       <div class="location-row">
-        <span class="location-label">
-          📍 {{ realAddress || selectedCity.name }}
-        </span>
+        <span class="location-label">📍 {{ realAddress || selectedCity.name }}</span>
         <button class="locate-btn-small" :disabled="locating" @click="useMyLocation">
           {{ locating ? '위치 확인 중…' : '내 위치 사용' }}
         </button>
@@ -217,13 +223,23 @@ onUnmounted(() => {
         {{ selectedCity.name }} 기준 · {{ displayTemp }}{{ configStore.unitSymbol }} ·
         {{ selectedCity.status }}
       </p>
-      <p v-if="locationStatus" class="location-status">{{ locationStatus }}</p>
 
-      <div class="city-grid">
+      <transition name="wx-alert-fade">
+        <div v-if="locationStatus" class="wx-alert" :class="`wx-alert--${locationStatusType}`">
+          <span class="wx-alert-icon">{{ locationStatusType === 'error' ? '⚠️' : 'ℹ️' }}</span>
+          <span class="wx-alert-text">{{ locationStatus }}</span>
+        </div>
+      </transition>
+
+      <div
+        class="segmented-control"
+        :style="{ '--seg-count': cityCount, '--seg-index': activeCityIndex }"
+      >
+        <div class="segmented-highlight"></div>
         <button
           v-for="city in weatherList"
           :key="city.id"
-          class="city-btn"
+          class="segmented-btn"
           :class="{ active: selectedCityId === city.id }"
           @click="selectedCityId = city.id"
         >
@@ -238,12 +254,15 @@ onUnmounted(() => {
     </p>
 
     <BaseDashboardCard title="강수 카운트다운">
-      <div class="countdown">
-        <div class="countdown-status">{{ current.status }}</div>
-        <div class="countdown-number">
-          {{ current.number }}<span class="countdown-unit">{{ current.unit }}</span>
+      <div class="hero-countdown">
+        <div class="hero-icon-wrap" :class="`level-${current.level}`">
+          <WeatherIcon :type="heroIconType" :size="42" />
         </div>
-        <div class="countdown-detail">{{ current.detail }}</div>
+        <div class="hero-status">{{ current.status }}</div>
+        <div class="hero-number">
+          {{ current.number }}<span class="hero-unit">{{ current.unit }}</span>
+        </div>
+        <div class="hero-detail">{{ current.detail }}</div>
         <span
           class="chip"
           :style="{ color: levelColor[current.level], background: levelSoft[current.level] }"
@@ -255,11 +274,27 @@ onUnmounted(() => {
 
     <BaseDashboardCard title="우산 필요 지수">
       <div class="gauge-dashboard">
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+          <defs>
+            <linearGradient id="gaugeGradient-clear" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#79dba6" />
+              <stop offset="100%" stop-color="#2fa66a" />
+            </linearGradient>
+            <linearGradient id="gaugeGradient-caution" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffc069" />
+              <stop offset="100%" stop-color="#e08a2e" />
+            </linearGradient>
+            <linearGradient id="gaugeGradient-alert" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff8a80" />
+              <stop offset="100%" stop-color="#e2503f" />
+            </linearGradient>
+          </defs>
+        </svg>
         <el-progress
           type="dashboard"
           :percentage="current.gauge"
-          :color="gaugeProgressColor"
-          :stroke-width="10"
+          :color="gaugeColorUrl"
+          :stroke-width="12"
         >
           <template #default="{ percentage }">
             <div class="gauge-center">
@@ -349,7 +384,10 @@ onUnmounted(() => {
       >
         📍 현재 위치를 집으로 등록
       </el-button>
-      <p v-if="homeStatus" class="location-status">{{ homeStatus }}</p>
+      <div v-if="homeStatus" class="wx-alert wx-alert--error">
+        <span class="wx-alert-icon">⚠️</span>
+        <span class="wx-alert-text">{{ homeStatus }}</span>
+      </div>
 
       <el-button type="warning" class="indoor-full-btn secondary" @click="triggerLeaveToast">
         🚪 외출 감지 수동 시뮬레이션
@@ -368,11 +406,12 @@ onUnmounted(() => {
 h1 {
   text-align: center;
   margin-bottom: 8px;
+  letter-spacing: -0.01em;
 }
 
 .page-desc {
   text-align: center;
-  color: #666;
+  color: var(--wx-ink-soft);
   margin: 0 0 24px;
   font-size: 14px;
 }
@@ -385,76 +424,134 @@ h1 {
 }
 
 .location-label {
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
+  color: var(--wx-ink);
 }
 
 .locate-btn-small {
   flex: none;
-  padding: 8px 14px;
-  border: 1px solid #2f6fed;
-  border-radius: 8px;
-  background: #fff;
-  color: #2f6fed;
+  padding: 8px 16px;
+  border: 1px solid var(--wx-glass-border);
+  border-radius: var(--wx-radius-full);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--wx-accent-deep);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
 }
 
 .locate-btn-small:hover:not(:disabled) {
-  background: #eef3ff;
+  background: var(--wx-accent-soft);
+  box-shadow: 0 4px 12px rgba(51, 88, 214, 0.15);
+}
+
+.locate-btn-small:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .locate-btn-small:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: default;
 }
 
 .location-weather {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #666;
+  color: var(--wx-ink-soft);
 }
 
-.location-status {
-  margin: 6px 0 0;
-  font-size: 12.5px;
-  color: #999;
-}
-
-.city-grid {
+.wx-alert {
   display: flex;
+  align-items: flex-start;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--wx-radius-md);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-left: 3px solid transparent;
 }
 
-.city-btn {
+.wx-alert-icon {
+  flex: none;
+  line-height: 1.4;
+}
+
+.wx-alert--info {
+  background: var(--wx-accent-soft);
+  color: var(--wx-accent-deep);
+  border-left-color: var(--wx-accent);
+}
+
+.wx-alert--error {
+  background: var(--wx-alert-soft);
+  color: var(--wx-alert);
+  border-left-color: var(--wx-alert);
+}
+
+.wx-alert-fade-enter-active,
+.wx-alert-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wx-alert-fade-enter-from,
+.wx-alert-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.segmented-control {
+  position: relative;
+  display: flex;
+  margin-top: 16px;
+  padding: 4px;
+  border-radius: var(--wx-radius-full);
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--wx-glass-border);
+}
+
+.segmented-highlight {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  bottom: 4px;
+  width: calc((100% - 8px) / v-bind(cityCount));
+  border-radius: var(--wx-radius-full);
+  background: linear-gradient(135deg, var(--wx-accent), var(--wx-accent-deep));
+  box-shadow: 0 4px 14px rgba(51, 88, 214, 0.32);
+  transform: translateX(calc(var(--seg-index) * 100%));
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.segmented-btn {
+  position: relative;
+  z-index: 1;
   flex: 1;
-  padding: 8px 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fafbfc;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--wx-radius-full);
   font-size: 13px;
   font-weight: 600;
-  color: #444;
+  color: var(--wx-ink-soft);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: color 0.25s ease, transform 0.15s ease;
 }
 
-.city-btn:hover {
-  border-color: #2f6fed;
+.segmented-btn.active {
+  color: #fff;
 }
 
-.city-btn.active {
-  border-color: #2f6fed;
-  background: #eef3ff;
-  color: #2f6fed;
+.segmented-btn:active {
+  transform: scale(0.95);
 }
 
 .live-note {
   margin: 0 0 16px;
   font-size: 13px;
-  color: #999;
+  color: var(--wx-ink-faint);
   line-height: 1.5;
   text-align: center;
 }
@@ -462,7 +559,7 @@ h1 {
 .indoor-note {
   margin: 0 0 14px;
   font-size: 13px;
-  color: #999;
+  color: var(--wx-ink-faint);
   line-height: 1.5;
 }
 
@@ -480,50 +577,102 @@ h1 {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 10px;
-  background: #eef3ff;
-  color: #2f6fed;
+  border-radius: var(--wx-radius-md);
+  background: var(--wx-accent-soft);
+  color: var(--wx-accent-deep);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 10px;
 }
 
-.countdown {
+.hero-countdown {
   text-align: center;
-  padding: 10px 0 4px;
+  padding: 6px 0 4px;
 }
 
-.countdown-status {
+.hero-icon-wrap {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  animation: wx-breathe 4.5s ease-in-out infinite;
+}
+
+.hero-icon-wrap :deep(.weather-icon) {
+  color: inherit;
+}
+
+.hero-icon-wrap.level-clear {
+  background: var(--wx-clear-soft);
+  color: var(--wx-clear);
+}
+
+.hero-icon-wrap.level-caution {
+  background: var(--wx-caution-soft);
+  color: var(--wx-caution);
+}
+
+.hero-icon-wrap.level-alert {
+  background: var(--wx-alert-soft);
+  color: var(--wx-alert);
+}
+
+@keyframes wx-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-icon-wrap {
+    animation: none;
+  }
+}
+
+.hero-status {
   font-size: 13px;
   font-weight: 600;
-  color: #666;
-  margin-bottom: 8px;
+  color: var(--wx-ink-soft);
+  margin-bottom: 6px;
 }
 
-.countdown-number {
-  font-size: 48px;
+.hero-number {
+  font-size: 60px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, var(--wx-ink) 20%, var(--wx-accent-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-unit {
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.countdown-unit {
-  font-size: 15px;
-  font-weight: 600;
-  color: #999;
+  color: var(--wx-ink-faint);
   margin-left: 4px;
+  -webkit-text-fill-color: var(--wx-ink-faint);
 }
 
-.countdown-detail {
+.hero-detail {
   margin-top: 10px;
   font-size: 13px;
-  color: #666;
+  color: var(--wx-ink-soft);
 }
 
 .chip {
   display: inline-block;
   margin-top: 14px;
-  padding: 5px 12px;
-  border-radius: 999px;
+  padding: 5px 14px;
+  border-radius: var(--wx-radius-full);
   font-size: 12px;
   font-weight: 700;
 }
@@ -542,21 +691,23 @@ h1 {
 }
 
 .gauge-center-percent {
-  font-size: 26px;
-  font-weight: 700;
-  color: #111;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--wx-ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .gauge-center-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: #999;
+  color: var(--wx-ink-faint);
 }
 
 .gauge-desc {
-  margin: 12px 0 0;
+  margin: 14px 0 0;
+  text-align: center;
   font-size: 13px;
-  color: #666;
+  color: var(--wx-ink-soft);
 }
 
 .timeline-bars {
@@ -584,7 +735,7 @@ h1 {
   justify-content: space-between;
   margin-top: 8px;
   font-size: 11px;
-  color: #999;
+  color: var(--wx-ink-faint);
 }
 
 .notif-form {
@@ -605,12 +756,12 @@ h1 {
   align-items: center;
   width: 100%;
   padding: 6px 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(140, 150, 170, 0.18);
 }
 
 .switch-row-label {
   font-size: 13px;
   font-weight: 600;
-  color: #222;
+  color: var(--wx-ink);
 }
 </style>

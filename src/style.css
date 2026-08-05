@@ -2,10 +2,88 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* 브랜드 & 배경 */
+  --wx-accent: #4f7cff;
+  --wx-accent-deep: #3358d6;
+  --wx-accent-soft: rgba(79, 124, 255, 0.14);
+
+  --wx-bg-a: #dce6ff;
+  --wx-bg-b: #f1e6ff;
+  --wx-bg-c: #dcfbf0;
+
+  /* 유리(글래스) 표면 */
+  --wx-glass-bg: rgba(255, 255, 255, 0.6);
+  --wx-glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --wx-glass-border: rgba(255, 255, 255, 0.7);
+  --wx-glass-shadow: 0 8px 30px rgba(31, 41, 80, 0.12);
+  --wx-glass-shadow-hover: 0 14px 40px rgba(31, 41, 80, 0.16);
+
+  /* 텍스트 */
+  --wx-ink: #1c2333;
+  --wx-ink-soft: #5b6478;
+  --wx-ink-faint: #8890a3;
+
+  /* 상태 색상 (날씨 강도) */
+  --wx-clear: #2fa66a;
+  --wx-clear-soft: rgba(47, 166, 106, 0.14);
+  --wx-caution: #e08a2e;
+  --wx-caution-soft: rgba(224, 138, 46, 0.15);
+  --wx-alert: #e2503f;
+  --wx-alert-soft: rgba(226, 80, 63, 0.15);
+
+  --wx-radius-lg: 22px;
+  --wx-radius-md: 14px;
+  --wx-radius-full: 999px;
+}
+
+html {
+  min-height: 100%;
+}
+
 body {
-  font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  background: #f2f4f7;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+    sans-serif;
   margin: 0;
-  padding: 32px 16px 80px;
-  color: #222;
+  padding: 28px 16px 96px;
+  min-height: 100vh;
+  color: var(--wx-ink);
+  -webkit-font-smoothing: antialiased;
+  background-color: #eef2fb;
+  background-image: radial-gradient(1100px 700px at 8% -8%, var(--wx-bg-a) 0%, transparent 62%),
+    radial-gradient(900px 650px at 105% 0%, var(--wx-bg-b) 0%, transparent 58%),
+    radial-gradient(900px 700px at 50% 115%, var(--wx-bg-c) 0%, transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+::selection {
+  background: var(--wx-accent-soft);
+}
+
+/* Element Plus 전역 톤 맞춤: 부드러운 hover/active 피드백 + 라운드 통일 */
+.el-button {
+  border-radius: var(--wx-radius-md);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(31, 41, 80, 0.14);
+}
+
+.el-button:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
+}
+
+.el-input__wrapper,
+.el-input__inner {
+  border-radius: var(--wx-radius-md) !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, var(--wx-accent), var(--wx-accent-deep));
+  border-color: transparent;
 }

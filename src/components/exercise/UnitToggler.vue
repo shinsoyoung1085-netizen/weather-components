@@ -12,17 +12,26 @@ const configStore = useConfigStore()
 
 <style scoped>
 .unit-toggler {
-  padding: 6px 14px;
-  border: 1px solid #2f6fed;
-  border-radius: 999px;
-  background: #fff;
-  color: #2f6fed;
+  margin-left: 6px;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid var(--wx-glass-border);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--wx-accent-deep);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 .unit-toggler:hover {
-  background: #eef3ff;
+  background: var(--wx-accent-soft);
+  box-shadow: 0 4px 12px rgba(51, 88, 214, 0.18);
+}
+
+.unit-toggler:active {
+  transform: scale(0.92);
 }
 </style>
