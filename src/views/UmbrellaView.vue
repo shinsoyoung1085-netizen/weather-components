@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
+import { ElMessage, ElNotification } from 'element-plus'
 import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
 import { weatherList } from '../data/weatherMock.js'
 import { findNearestCity, haversineDistanceKm } from '../utils/geo.js'
@@ -83,6 +84,13 @@ const levelSoft = { clear: '#dcf0e6', caution: '#f7e8d2', alert: '#ffe3e0' }
 const barColor = ['#e5e7eb', '#3f9c6d', '#c8842a', '#d3402b']
 const barHeight = [4, 30, 62, 96]
 
+// el-progress color: 30% 이하 파랑 / 70% 이하 주황 / 70% 초과 빨강
+function gaugeProgressColor(percentage) {
+  if (percentage <= 30) return '#409eff'
+  if (percentage <= 70) return '#e6a23c'
+  return '#f56c6c'
+}
+
 const notificationPrefs = ref({
   countdown: true,
   commute: true,
@@ -90,21 +98,26 @@ const notificationPrefs = ref({
   umbrellaLost: true,
 })
 
-function togglePref(key) {
-  notificationPrefs.value[key] = !notificationPrefs.value[key]
-}
+const notificationPrefList = [
+  { key: 'countdown', label: '초단기 카운트다운 알림' },
+  { key: 'commute', label: '출퇴근 스마트 알림' },
+  { key: 'rainStop', label: '비 그침 예측 알림' },
+  { key: 'umbrellaLost', label: '우산 분실 방지 팝업' },
+]
+
+// el-time-picker와 바인딩되는 출퇴근 시간 (value-format="HH:mm" 문자열로 유지)
+const departureTime = ref('07:30')
+const returnTime = ref('18:30')
 
 // 실내(집/회사 등)에서 밖으로 나가는 순간을 감지해, 우산을 챙겼는지 되묻는 알림.
 // 실제 앱은 Wi-Fi 연결 해제로 감지하지만, 웹에서는 Wi-Fi 상태에 접근할 수 없으므로
 // "등록해둔 집 좌표 반경을 벗어나는 순간"을 GPS로 감지해 대신한다.
-const showLeaveToast = ref(false)
-let leaveTimer = null
 function triggerLeaveToast() {
-  showLeaveToast.value = true
-  clearTimeout(leaveTimer)
-  leaveTimer = setTimeout(() => {
-    showLeaveToast.value = false
-  }, 3000)
+  ElNotification({
+    title: '☂️ 우산 알림',
+    message: '외출이 감지되었습니다! 우산을 챙겼는지 확인하세요.',
+    type: 'warning',
+  })
 }
 
 const LEAVE_RADIUS_KM = 0.15 // 150m
@@ -131,6 +144,7 @@ function registerHomeLocation() {
       }
       wasInsideRadius = true
       startWatchingLeave()
+      ElMessage.success('현재 위치가 집으로 등록되었습니다.')
     },
     () => {
       registeringHome.value = false
@@ -177,7 +191,6 @@ function clearHomeLocation() {
 }
 
 onUnmounted(() => {
-  clearTimeout(leaveTimer)
   if (watchId !== null) {
     navigator.geolocation.clearWatch(watchId)
   }
@@ -241,16 +254,20 @@ onUnmounted(() => {
     </BaseDashboardCard>
 
     <BaseDashboardCard title="우산 필요 지수">
-      <div class="gauge-row">
-        <div class="gauge-percent" :style="{ color: levelColor[current.level] }">
-          {{ current.gauge }}%
-        </div>
-        <div class="gauge-bar-track">
-          <div
-            class="gauge-bar-fill"
-            :style="{ width: current.gauge + '%', background: levelColor[current.level] }"
-          ></div>
-        </div>
+      <div class="gauge-dashboard">
+        <el-progress
+          type="dashboard"
+          :percentage="current.gauge"
+          :color="gaugeProgressColor"
+          :stroke-width="10"
+        >
+          <template #default="{ percentage }">
+            <div class="gauge-center">
+              <span class="gauge-center-percent">{{ percentage }}%</span>
+              <span class="gauge-center-label">우산 필요 지수</span>
+            </div>
+          </template>
+        </el-progress>
       </div>
       <p class="gauge-desc">{{ current.gaugeDesc }}</p>
     </BaseDashboardCard>
@@ -273,46 +290,43 @@ onUnmounted(() => {
     </BaseDashboardCard>
 
     <BaseDashboardCard title="알림 설정">
-      <div class="pref-row">
-        <span class="field-name">출근 준비 시간</span>
-        <span class="field-value">07:30</span>
-      </div>
-      <div class="pref-row">
-        <span class="field-name">퇴근 시간</span>
-        <span class="field-value">18:30</span>
-      </div>
-      <div class="pref-row">
-        <span class="field-name">초단기 카운트다운 알림</span>
-        <button
-          class="switch"
-          :class="{ on: notificationPrefs.countdown }"
-          @click="togglePref('countdown')"
-        ></button>
-      </div>
-      <div class="pref-row">
-        <span class="field-name">출퇴근 스마트 알림</span>
-        <button
-          class="switch"
-          :class="{ on: notificationPrefs.commute }"
-          @click="togglePref('commute')"
-        ></button>
-      </div>
-      <div class="pref-row">
-        <span class="field-name">비 그침 예측 알림</span>
-        <button
-          class="switch"
-          :class="{ on: notificationPrefs.rainStop }"
-          @click="togglePref('rainStop')"
-        ></button>
-      </div>
-      <div class="pref-row">
-        <span class="field-name">우산 분실 방지 팝업</span>
-        <button
-          class="switch"
-          :class="{ on: notificationPrefs.umbrellaLost }"
-          @click="togglePref('umbrellaLost')"
-        ></button>
-      </div>
+      <el-form label-position="top" class="notif-form">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="출근 준비 시간">
+              <el-time-picker
+                v-model="departureTime"
+                format="HH:mm"
+                value-format="HH:mm"
+                placeholder="시간 선택"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="퇴근 시간">
+              <el-time-picker
+                v-model="returnTime"
+                format="HH:mm"
+                value-format="HH:mm"
+                placeholder="시간 선택"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item
+          v-for="pref in notificationPrefList"
+          :key="pref.key"
+          class="switch-form-item"
+        >
+          <div class="switch-row">
+            <span class="switch-row-label">{{ pref.label }}</span>
+            <el-switch v-model="notificationPrefs[pref.key]" />
+          </div>
+        </el-form-item>
+      </el-form>
     </BaseDashboardCard>
 
     <BaseDashboardCard title="외출 감지">
@@ -324,24 +338,23 @@ onUnmounted(() => {
 
       <div v-if="homeLocation" class="home-status">
         <span>🏠 집 위치 등록됨 · 반경 150m 이탈 실시간 감시 중</span>
-        <button class="text-btn" @click="clearHomeLocation">초기화</button>
+        <el-button link type="danger" @click="clearHomeLocation">초기화</el-button>
       </div>
-      <button
+      <el-button
         v-else
-        class="indoor-btn"
-        :disabled="registeringHome"
+        type="primary"
+        class="indoor-full-btn"
+        :loading="registeringHome"
         @click="registerHomeLocation"
       >
-        {{ registeringHome ? '위치 확인 중…' : '📍 현재 위치를 집으로 등록' }}
-      </button>
+        📍 현재 위치를 집으로 등록
+      </el-button>
       <p v-if="homeStatus" class="location-status">{{ homeStatus }}</p>
 
-      <button class="indoor-btn secondary" @click="triggerLeaveToast">
+      <el-button type="warning" class="indoor-full-btn secondary" @click="triggerLeaveToast">
         🚪 외출 감지 수동 시뮬레이션
-      </button>
+      </el-button>
     </BaseDashboardCard>
-
-    <div class="toast" :class="{ show: showLeaveToast }">☂️ 우산을 두고 나오진 않으셨나요?</div>
   </div>
 </template>
 
@@ -453,29 +466,11 @@ h1 {
   line-height: 1.5;
 }
 
-.indoor-btn {
+.indoor-full-btn {
   width: 100%;
-  padding: 10px;
-  border: 1px dashed #d1d5db;
-  border-radius: 10px;
-  background: transparent;
-  color: #666;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
-.indoor-btn:hover:not(:disabled) {
-  border-color: #999;
-  color: #222;
-}
-
-.indoor-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.indoor-btn.secondary {
+.indoor-full-btn.secondary {
   margin-top: 10px;
 }
 
@@ -491,18 +486,6 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 10px;
-}
-
-.text-btn {
-  border: none;
-  background: transparent;
-  color: #2f6fed;
-  font-size: 12.5px;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 0;
-  flex: none;
 }
 
 .countdown {
@@ -545,31 +528,29 @@ h1 {
   font-weight: 700;
 }
 
-.gauge-row {
+.gauge-dashboard {
   display: flex;
+  justify-content: center;
+  padding: 6px 0 4px;
+}
+
+.gauge-center {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 4px;
 }
 
-.gauge-percent {
-  flex: none;
-  width: 52px;
-  font-size: 20px;
+.gauge-center-percent {
+  font-size: 26px;
   font-weight: 700;
+  color: #111;
 }
 
-.gauge-bar-track {
-  flex: 1;
-  height: 10px;
-  border-radius: 999px;
-  background: #eef0f3;
-  overflow: hidden;
-}
-
-.gauge-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.4s ease, background 0.3s ease;
+.gauge-center-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #999;
 }
 
 .gauge-desc {
@@ -606,79 +587,30 @@ h1 {
   color: #999;
 }
 
-.pref-row {
+.notif-form {
+  margin-top: 4px;
+}
+
+.notif-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.switch-form-item :deep(.el-form-item__content) {
+  width: 100%;
+}
+
+.switch-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  width: 100%;
+  padding: 6px 0;
   border-bottom: 1px solid #eee;
-  font-size: 13px;
 }
 
-.pref-row:last-child {
-  border-bottom: none;
-}
-
-.field-name {
-  font-weight: 600;
-}
-
-.field-value {
-  color: #666;
-}
-
-.switch {
-  width: 38px;
-  height: 22px;
-  border-radius: 999px;
-  background: #e5e7eb;
-  position: relative;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  transition: background 0.2s ease;
-}
-
-.switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform 0.2s ease;
-}
-
-.switch.on {
-  background: #2f6fed;
-}
-
-.switch.on::after {
-  transform: translateX(16px);
-}
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translate(-50%, 140%);
-  opacity: 0;
-  background: #222;
-  color: #fff;
-  border-radius: 12px;
-  padding: 13px 18px;
+.switch-row-label {
   font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease, opacity 0.25s ease;
-  max-width: 90vw;
-}
-
-.toast.show {
-  transform: translate(-50%, 0);
-  opacity: 1;
+  color: #222;
 }
 </style>
